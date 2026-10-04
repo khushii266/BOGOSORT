@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Mission Control — Launch Watcher</title>
+		<link rel="stylesheet" href="styles.css" />
+	</head>
+	<body>
+		<header class="topbar">
+			<div>
+				<div class="eyebrow">MISSION ACCEPTED • TRACK 2</div>
+					<h1>Mission Control</h1>
+					<p>Understand the launch. Follow the mission. Explore the “what if?”</p>
+				</div>
+			<div class="badge">🚀 LAUNCH WATCHER</div>
+		</header>
+
+		<main class="container">
+			<section class="hero-grid">
+			<div class="card launch-card">
+				<div class="section-label">NEXT LAUNCH WINDOW</div>
+				<h2 id="countdown">--:--:--</h2>
+				<div id="windowText" class="big-text">Loading...</div>
+				<div class="chips">
+					<span id="orbitChip">SSO</span>
+					<span id="inclinationChip">98.1°</span>
+					<span id="weatherChip">🟢 Weather favorable</span>
+				</div>
+			</div>
+
+			<div class="card controls">
+				<div class="section-label">MISSION SETTINGS</div>
+				<label>
+					Target orbit
+					<select id="orbitSelect">
+						<option value="LEO">LEO</option>
+						<option value="Polar">Polar</option>
+						<option value="SSO" selected>SSO</option>
+					</select>
+				</label>
+
+				<label>
+					Launch delay scenario
+					<input id="delaySlider" type="range" min="0" max="30" value="0" />
+					<span><strong id="delayValue">0</strong> minutes</span>
+				</label>
+
+				<button id="refreshBtn">Recalculate Mission</button>
+			</div>
+			</section>
+
+			<section class="grid-2">
+				<div class="card">
+					<div class="card-header">
+						<div>
+							<div class="section-label">3D ORBIT VIEW</div>
+							<h3>Predicted trajectory</h3>
+						</div>
+						<span class="mini-status">SIMULATION</span>
+					</div>
+					<div id="orbitPlot">
+						<iframe
+							id="godot-frame"
+					        src="./Visual/Visual.html"
+					        width="650"
+					        height="450" 
+					        style="border: none;"
+					        allow="autoplay; fullscreen; gamepad"
+					        loading="lazy">
+					    </iframe>
+					</div>
+					<div class="slider-row">
+						<label for="total_steps">mission steps</label>
+						<input id="total_steps" type="range" min="0" max="60" value="0" />
+						<span id="stepValue">0</span>
+					</div>
+				</div>
+
+				<div class="card">
+					<div class="card-header">
+						<div>
+							<div class="section-label">MISSION COORIDANTES</div>
+						</div>
+					</div>
+				<div class="status-list">
+					<label for="start_lon">longitude</label>
+					<input type="number" id="start_lon">
+					<label for="start_lat">latitude</label>
+					<input type="number" id="start_lat">
+					<label for="target_orbit_height">orbit height</label>
+					<input type="number" id="target_orbit_height">
+					<label for="avg_launch_angle">launch angle</label>
+					<input type="number" id="avg_launch_angle">
+					<label for="launch_azimuth">launch azimuth</label>
+					<input type="number" id="launch_azimuth">
+				</div>
+				</div>
+			</section>
+
+			<section class="grid-2">
+			<div class="card">
+				<div class="section-label">MISSION TIMELINE</div>
+				<h3>From liftoff to first contact</h3>
+				<div class="timeline">
+					<div><span>T-10:00</span><b>Weather & mission check</b></div>
+					<div><span>T+00:00</span><b>🚀 Liftoff</b></div>
+					<div><span>T+02:00</span><b>Stage separation</b></div>
+					<div><span>T+08:00</span><b>Orbital insertion</b></div>
+					<div><span>T+09:00</span><b>🛰️ Satellite deployment</b></div>
+					<div><span>T+15:00</span><b>📡 First communication</b></div>
+				</div>
+			</div>
+
+			<div class="card">
+				<div class="section-label">UPCOMING WINDOWS</div>
+					<h3>Candidate launch windows</h3>
+				<div id="windows"></div>
+			</div>
+			</section>
+
+			<section class="card what-if">
+				<div>
+					<div class="section-label">WHAT IF?</div>
+					<h3>Explore a launch delay</h3>
+					<p>
+						Move the slider above to see how a hypothetical launch delay changes
+						the calculated demo window and trajectory.
+					</p>
+				</div>
+				<div class="scenario">
+					<div>
+						<span>Scenario</span>
+						<strong id="scenarioDelay">0 min delay</strong>
+					</div>
+					<div>
+						<span>Trajectory</span>
+						<strong id="scenarioTrajectory">Nominal</strong>
+					</div>
+					<div>
+						<span>Communication</span>
+						<strong id="scenarioComm">Available</strong>
+					</div>
+				</div>
+			</section>
+
+			<section class="card explain">
+				<div class="section-label">WHY THIS WINDOW?</div>
+				<h3>Make orbital mechanics understandable</h3>
+				<div class="reason-grid">
+					<div>✓ Target inclination: <strong id="reasonInclination">98.1°</strong></div>
+					<div>✓ Candidate orbital geometry</div>
+					<div>✓ Launch site considered</div>
+					<div>✓ Weather shown separately</div>
+				</div>
+				<p class="disclaimer">
+					Prototype note: the launch-window and trajectory models in this MVP are simplified
+					for demonstration. They are not operational flight guidance.
+				</p>
+			</section>
+		</main>
+
+		<footer>
+			Mission Control • Mission Accepted Track 2 • Hackathon Prototype
+		</footer>
+
+		<script>
+
+			function createOrbitDataPoints(totalSteps, lat, lon, centerRadius) {
+			    const dataPoints = [];
+			    
+			    // 1. Calculate the fixed 3D position of your starting spherical center point
+			    const xCenter = centerRadius * cosv(lat) * cosv(lon);
+			    const yCenter = centerRadius * cosv(lat) * sinv(lon);
+			    const zCenter = centerRadius * sinv(lat);
+
+			    // 2. Orbital speed: The satellite moves ~0.304 degrees every 5 seconds
+			    const DEGREES_PER_5_SECONDS = 0.304; 
+
+			    // 3. Iteratively loop through time increments
+			    for (let step = 0; step < totalSteps; step++) {
+			        // Calculate the current orbital angle (t) for this time step
+			        const t = step * DEGREES_PER_5_SECONDS;
+
+			        // Calculate the satellite's relative orbit radius
+			        const r = 6998.137 * (1 - 0.0005**2) / (1 + 0.0005 * cosv(t));
+			        
+			        // Calculate orbital path relative to the center (tilted at 81.3°)
+			        const xOrbit = r * cosv(t);
+			        const yOrbit = -0.1369 * r * sinv(t);
+			        const zOrbit = 0.9906 * r * sinv(t);
+			        
+			        // Add the shifted coordinates to our array
+			        dataPoints.push({
+			            timeInSeconds: step * 5,
+			            orbitalAngle: t % 360, // Wraps neatly around 360 degrees
+			            x: xCenter + xOrbit,
+			            y: yCenter + yOrbit,
+			            z: zCenter + zOrbit
+			        });
+			    }
+
+			    return dataPoints;
+			}
+
+			function generateProjectileLiftoff(totalSteps, lat, lon, startRadius, startVelocity, avgLaunchAngle, launchAzimuth) {
+			    const dataPoints = [];
+			    const DT = 5; // 5-second time step
+			    const G_EARTH = 0.00981; // Gravity constant in km/s²
+
+			    // 1. Calculate the fixed 3D Cartesian position of the launchpad
+			    const xLaunchpad = startRadius * cosv(lat) * cosv(lon);
+			    const yLaunchpad = startRadius * cosv(lat) * sinv(lon);
+			    const zLaunchpad = startRadius * sinv(lat);
+
+			    // 2. Break the starting velocity vector down into constant horizontal and vertical speeds
+			    const initVelocityVertical = startVelocity * sinv(avgLaunchAngle);
+			    const initVelocityHorizontal = startVelocity * cosv(avgLaunchAngle);
+
+			    // 3. Iteratively calculate the trajectory points over time
+			    for (let step = 0; step < totalSteps; step++) {
+			        const time = step * DT;
+
+			        // Kinematic Projectile Motion Equations:
+			        // Horizontal distance = Speed * Time (No horizontal acceleration)
+			        // Vertical distance = (Initial Vertical Speed * Time) - (0.5 * g * Time²)
+			        const posHorizontal = initVelocityHorizontal * time;
+			        const posVertical = (initVelocityVertical * time) - (0.5 * G_EARTH * (time ** 2));
+
+			        // 4. Translate horizontal downrange motion along the compass heading (Azimuth)
+			        // localX is East/West direction, localY is North/South direction, localZ is altitude
+			        const localX = posHorizontal * sinv(launchAzimuth);
+			        const localY = posHorizontal * cosv(launchAzimuth);
+			        const localZ = posVertical;
+
+			        // 5. Apply the standard rotation matrix to align local coordinates with global Earth space
+			        const xOffset = -sinv(lon) * localX - sinv(lat) * cosv(lon) * localY + cosv(lat) * cosv(lon) * localZ;
+			        const yOffset =  cosv(lon) * localX - sinv(lat) * sinv(lon) * localY + cosv(lat) * sinv(lon) * localZ;
+			        const zOffset =  cosv(lat) * localY + sinv(lat) * localZ;
+
+			        // 6. Combine launchpad position with the localized offset
+			        dataPoints.push({
+			            timeInSeconds: time,
+			            altitudeKm: posVertical,
+			            downrangeKm: posHorizontal,
+			            x: xLaunchpad + xOffset,
+			            y: yLaunchpad + yOffset,
+			            z: zLaunchpad + zOffset
+			        });
+			    }
+
+			    return dataPoints;
+			}
+
+			function generateOrbitHeightLiftoff(totalSteps, lat, lon, startRadius, targetOrbitHeight, avgLaunchAngle, launchAzimuth) {
+			    const dataPoints = [];
+			    const DT = 5; // 5-second time step
+			    const G_EARTH = 0.00981; // Gravity constant in km/s²
+
+			    // 1. Calculate the fixed 3D Cartesian position of the launchpad
+			    const xLaunchpad = startRadius * cosv(lat) * cosv(lon);
+			    const yLaunchpad = startRadius * cosv(lat) * sinv(lon);
+			    const zLaunchpad = startRadius * sinv(lat);
+
+			    // 2. Physics Back-Calculation: 
+			    // Find the required initial vertical velocity to reach peak 'targetOrbitHeight' (v_y = sqrt(2 * g * h))
+			    const initVelocityVertical = Math.sqrt(2 * G_EARTH * targetOrbitHeight);
+
+			    // Using trigonometry, find the total velocity and horizontal velocity based on the average launch angle
+			    // (Since velocity_vertical = total_velocity * sin(angle))
+			    const requiredTotalVelocity = initVelocityVertical / sinv(avgLaunchAngle);
+			    const initVelocityHorizontal = requiredTotalVelocity * cosv(avgLaunchAngle);
+
+			    // 3. Iteratively calculate the trajectory points over time
+			    for (let step = 0; step < totalSteps; step++) {
+			        const time = step * DT;
+
+			        // Kinematic Projectile Motion Equations
+			        const posHorizontal = initVelocityHorizontal * time;
+			        const posVertical = (initVelocityVertical * time) - (0.5 * G_EARTH * (time ** 2));
+
+			        // Stop generating points if the projectile falls back and hits the surface
+			        if (posVertical < 0 && time > 0) {
+			            break;
+			        }
+
+			        // 4. Translate horizontal downrange motion along the compass heading (Azimuth)
+			        const localX = posHorizontal * sinv(launchAzimuth);
+			        const localY = posHorizontal * cosv(launchAzimuth);
+			        const localZ = posVertical;
+
+			        // 5. Apply the standard rotation matrix to align local coordinates with global Earth space
+			        const xOffset = -sinv(lon) * localX - sinv(lat) * cosv(lon) * localY + cosv(lat) * cosv(lon) * localZ;
+			        const yOffset =  cosv(lon) * localX - sinv(lat) * sinv(lon) * localY + cosv(lat) * sinv(lon) * localZ;
+			        const zOffset =  cosv(lat) * localY + sinv(lat) * localZ;
+
+			        // 6. Combine launchpad position with the localized offset
+			        dataPoints.push({
+			            timeInSeconds: time,
+			            altitudeKm: posVertical,
+			            downrangeKm: posHorizontal,
+			            x: xLaunchpad + xOffset,
+			            y: yLaunchpad + yOffset,
+			            z: zLaunchpad + zOffset
+			        });
+			    }
+
+			    return dataPoints;
+			}
+
+			let godotCallback = null;
+
+			window.registerGodotCallback = function(callback) {
+			    godotCallback = callback;
+			};
+
+			const button = document.getElementById("refreshBtn");
+
+			// 3. Attach the event listener to run the function on click
+			button.addEventListener("click", processAndSendData);
+
+			function processAndSendData() {
+			    // 1. Pull and parse numbers from your existing HTML elements by their IDs
+			    const totalSteps        = parseInt(document.getElementById('total_steps').value, 10);
+			    const startLat          = parseFloat(document.getElementById('start_lat').value);
+			    const startLon          = parseFloat(document.getElementById('start_lon').value);
+			    const targetOrbitHeight = parseFloat(document.getElementById('target_orbit_height').value);
+			    const avgLaunchAngle    = parseFloat(document.getElementById('avg_launch_angle').value);
+			    const launchAzimuth    = parseFloat(document.getElementById('launch_azimuth').value);
+
+			    // 2. Defensive Validation: Ensure all elements provided real numbers
+			    if ([totalSteps, startLat, startLon, targetOrbitHeight, avgLaunchAngle, launchAzimuth].some(isNaN)) {
+			        console.error("Transmission blocked: One or more HTML input elements contain invalid numbers.");
+			        return;
+			    }
+
+			    // 3. Mathematical constants & kinematics setup
+			    const dt = 5.0; 
+			    const gEarth = 0.00981; 
+			    const earthRadiusKm = 6378.1;
+			    const kmPerDegree = (2.0 * Math.PI * earthRadiusKm) / 360.0;
+			    const dataset = [];
+
+			    // 4. Physical Back-Calculations
+			    const initVelocityVertical = Math.sqrt(2.0 * gEarth * targetOrbitHeight);
+			    const requiredTotalVelocity = initVelocityVertical / sinv(avgLaunchAngle);
+			    const initVelocityHorizontal = requiredTotalVelocity * cosv(avgLaunchAngle);
+
+			    // 5. Data Generation Loop
+			    for (let step = 0; step < totalSteps; step++) {
+			        const time = step * dt;
+			        const posVertical = (initVelocityVertical * time) - (0.5 * gEarth * Math.pow(time, 2));
+			        const posHorizontal = initVelocityHorizontal * time;
+
+			        if (posVertical < 0.0 && time > 0.0) break; // Ground cutoff
+
+			        const deltaNorthKm = posHorizontal * cosv(launchAzimuth);
+			        const deltaEastKm = posHorizontal * sinv(launchAzimuth);
+			        
+			        const currentLat = startLat + (deltaNorthKm / kmPerDegree);
+			        let cosLatModifier = cosv(currentLat);
+			        if (Math.abs(cosLatModifier) < 0.001) cosLatModifier = 0.001;
+			        const currentLon = startLon + (deltaEastKm / (kmPerDegree * cosLatModifier));
+
+			        dataset.push({
+			            lon: currentLon,
+			            lat: currentLat,
+			            height: posVertical
+			        });
+			    }
+
+			    // 6. Forward the completed dataset array down to your sendData function
+			    sendData(dataset);
+			}
+
+			function sendData(trajectoryData) {
+			    const godotFrame = document.getElementById('godot-frame');
+			    
+			    if (godotFrame && godotFrame.contentWindow) {
+			        // Formulate a structured message layout
+			        const message = {
+			            type: "LAUNCH_TELEMETRY",
+			            data: trajectoryData
+			        };
+			        
+			        // Post the message across context frames safely using a wildcard targetOrigin
+			        // (Change '*' to a specific domain string if deployment origin restrictions are required later)
+			        godotFrame.contentWindow.postMessage(message, '*');
+			        console.log("Telemetry array broadcast complete. Packets sent:", trajectoryData.length);
+			    } else {
+			        console.error("Transmission failed: Visual/Visual.html iframe target container could not be parsed.");
+			    }
+			}
+
+			function cosv(t) {
+			    const radians = t * (Math.PI / 180);
+			    return Math.cos(radians);
+			}
+
+			// Converts degrees to radians, then calculates the sine
+			function sinv(t) {
+			    const radians = t * (Math.PI / 180);
+			    return Math.sin(radians);
+			}
+		</script>
+	</body>
+</html>
